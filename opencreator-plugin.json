@@ -1,0 +1,12 @@
+{
+  "id": "filaman",
+  "name": "FilaMan for OpenCreator",
+  "version": "0.1.0",
+  "author": "MarkSau",
+  "description": "Experimental FilaMan Moonraker bridge for Creator 5 Pro",
+  "moonraker_components": ["moonraker/filaman.py"],
+  "requires": {
+    "models": ["Creator5Pro"],
+    "modes": ["soc"]
+  }
+}

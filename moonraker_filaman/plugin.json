@@ -1,0 +1,135 @@
+{
+  "icon": "icon.svg",
+  "plugin_key": "moonraker_filaman",
+  "name": "Moonraker FilaMan",
+  "driver_key": "moonraker_filaman",
+  "plugin_type": "driver",
+  "version": "0.3.0",
+  "description": "Driver that sends spool assignments from FilaMan to Moonraker's filaman component. Supports toolhead assignment and optional macro-based tray targets.",
+  "author": "FilaMan",
+  "homepage": "https://www.filaman.app",
+  "dependencies": ["aiohttp>=3.9.0,<4"],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "moonraker_url": {
+        "type": "string",
+        "title": "Moonraker URL",
+        "description": "Base URL of Moonraker, e.g. http://192.168.1.20:7125"
+      },
+      "api_key": {
+        "type": "string",
+        "title": "Moonraker API Key",
+        "description": "Optional API key for authenticated Moonraker instances"
+      },
+      "mode": {
+        "type": "string",
+        "title": "Assignment Mode",
+        "description": "toolhead_only sets the active spool in Moonraker. tray_macros additionally runs tray macros per slot.",
+        "enum": ["toolhead_only", "tray_macros"],
+        "default": "toolhead_only"
+      },
+      "request_timeout_seconds": {
+        "type": "integer",
+        "title": "Request Timeout (seconds)",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 120
+      },
+      "auto_assign_confirm": {
+        "type": "string",
+        "title": "Auto-Assign Confirmation",
+        "description": "How a pending auto-assign is confirmed. sensor waits for filament to appear (toolhead sensor, or an AMS/MMU slot sensor which also identifies the slot). immediate assigns at once. off disables pending auto-assign.",
+        "enum": [
+          "sensor",
+          "immediate",
+          "off"
+        ],
+        "default": "sensor"
+      },
+      "sensor_timeout_seconds": {
+        "type": "integer",
+        "title": "Confirmation Timeout (seconds)",
+        "description": "How long a pending auto-assign waits for confirmation before it is dropped. Acts as a floor: a caller asking for longer gets longer.",
+        "default": 300,
+        "minimum": 10,
+        "maximum": 3600
+      },
+      "slot_sensor_object": {
+        "type": [
+          "string",
+          "array",
+          "null"
+        ],
+        "title": "Slot Sensor Object(s)",
+        "description": "Klipper object holding per-slot filament presence, or a list of objects when there is one per slot. Give full object names; wildcards are not expanded. Names are matched case-insensitively. Left empty it is autodetected: multi_color_controller (QIDI BOX), mmu (Happy Hare), or one AFC_stepper <lane> object per lane (AFC).",
+        "items": {
+          "type": "string"
+        }
+      },
+      "slot_sensor_states_path": {
+        "type": "string",
+        "title": "Slot Sensor Path",
+        "description": "Dotted path to the presence data inside the object, e.g. slots.states or gate_status. Required whenever slot_sensor_object is set by hand: autodetection fills in the object and the path together, or neither. Leave both empty to autodetect."
+      },
+      "slot_sensor_per_slot": {
+        "type": "boolean",
+        "title": "One Sensor Object Per Slot",
+        "description": "Set when slot_sensor_object lists one object per slot (AFC) rather than a single object mapping all of them (QIDI, Happy Hare). Autodetection sets this itself.",
+        "default": false
+      },
+      "slot_targets": {
+        "type": "array",
+        "title": "Tray Targets",
+        "description": "Optional tray target definitions used for UI and tray_macros mode",
+        "items": {
+          "type": "object",
+          "properties": {
+            "slot_index": {
+              "type": "string",
+              "title": "Slot Index",
+              "description": "Unique slot id like 0-0, 0-1, toolhead"
+            },
+            "slot_name": {
+              "type": "string",
+              "title": "Slot Name",
+              "description": "Display label for this slot"
+            },
+            "assign_gcode": {
+              "type": "string",
+              "title": "Assign GCode",
+              "description": "Optional macro/GCode command. Supports placeholders: {spool_id}, {slot_index}, {ams_id}, {tray_id}, {material_type}, {color}"
+            },
+            "default_material_type": {
+              "type": "string",
+              "title": "Default Material",
+              "default": "PLA"
+            },
+            "default_color": {
+              "type": "string",
+              "title": "Default Color",
+              "default": "FFFFFF"
+            }
+          },
+          "required": ["slot_index", "slot_name"]
+        },
+        "default": []
+      },
+      "slot_count": {
+        "type": "integer",
+        "title": "Virtual Slot Count",
+        "description": "If no slot_targets are configured, this many virtual slots are shown",
+        "default": 1,
+        "minimum": 1,
+        "maximum": 32
+      }
+    },
+    "required": ["moonraker_url"]
+  },
+  "capabilities": {
+    "has_slots": true,
+    "has_rfid": false,
+    "has_ams": true,
+    "supports_auto_match": true
+  }
+}
