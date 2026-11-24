@@ -8,6 +8,8 @@ This repository contains two separate pieces: an OpenCreator-installed
 Moonraker component (`moonraker/filaman.py`) and a FilaMan-installed driver
 (`moonraker_filaman/`). OpenCreator already uses Moonraker to reach Kalico;
 this integration deliberately retains that bridge.
+The FilaMan plugin and driver key is `opencreator_filaman`; its
+`opencreator_url` points to the printer's Moonraker HTTP service.
 
 See the [integration guide](docs/opencreator-integration.md), [architecture](docs/architecture.md),
 [compatibility matrix and migration plan](docs/migration.md), and

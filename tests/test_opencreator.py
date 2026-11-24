@@ -1,5 +1,6 @@
 """Focused tests against the shipped methods without Moonraker/FilaMan imports."""
 import ast
+import asyncio
 import json
 import logging
 import re
@@ -7,11 +8,12 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def extract(path, class_name, names, namespace):
+def extract(path, class_name, names, namespace, bases=None):
     tree = ast.parse(path.read_text())
     cls = next(node for node in tree.body
                if isinstance(node, ast.ClassDef) and node.name == class_name)
@@ -21,7 +23,7 @@ def extract(path, class_name, names, namespace):
     assert {node.name for node in methods} == set(names)
     module = ast.Module(body=[ast.ImportFrom(module="__future__", names=[
         ast.alias(name="annotations")], level=0),
-        ast.ClassDef(name="Probe", bases=[], keywords=[], body=methods,
+        ast.ClassDef(name="Probe", bases=bases or [], keywords=[], body=methods,
                      decorator_list=[])], type_ignores=[])
     exec(compile(ast.fix_missing_locations(module), str(path), "exec"), namespace)
     return namespace["Probe"]
@@ -40,6 +42,25 @@ Driver = extract(ROOT / "moonraker_filaman/driver.py", "Driver",
                          else name.casefold() == needle.casefold(),
                      "logger": logging.getLogger(__name__),
                  })
+
+
+class FakeBase:
+    def __init__(self, printer_id, config, emitter):
+        self.printer_id = printer_id
+
+
+InitDriver = extract(
+    ROOT / "moonraker_filaman/driver.py", "Driver", ["__init__", "_validate_url"],
+    {"asyncio": asyncio, "urlparse": urlparse,
+     "logger": logging.getLogger(__name__), "FakeBase": FakeBase,
+     "DEFAULT_AUTO_ASSIGN_CONFIRM": "sensor",
+     "AUTO_ASSIGN_CONFIRM_VALUES": ("sensor", "immediate", "off"),
+     "DEFAULT_SENSOR_TIMEOUT_SECONDS": 300,
+     "MIN_SENSOR_TIMEOUT_SECONDS": 10, "MAX_SENSOR_TIMEOUT_SECONDS": 3600},
+    bases=[ast.Name(id="FakeBase", ctx=ast.Load())],
+)
+InitDriver._normalize_slot_targets = lambda self, config: []
+InitDriver._build_initial_slots = lambda self: []
 
 
 class OpenCreatorTests(unittest.IsolatedAsyncioTestCase):
@@ -105,6 +126,31 @@ class OpenCreatorTests(unittest.IsolatedAsyncioTestCase):
     def test_fila_man_default_does_not_create_virtual_trays(self):
         manifest = json.loads((ROOT / "moonraker_filaman/plugin.json").read_text())
         self.assertEqual(manifest["config_schema"]["properties"]["slot_count"]["default"], 1)
+
+    def test_driver_identity_and_schema_match(self):
+        manifest = json.loads((ROOT / "moonraker_filaman/plugin.json").read_text())
+        tree = ast.parse((ROOT / "moonraker_filaman/driver.py").read_text())
+        cls = next(node for node in tree.body
+                   if isinstance(node, ast.ClassDef) and node.name == "Driver")
+        key = next(node.value.value for node in cls.body if isinstance(node, ast.Assign)
+                   and any(isinstance(target, ast.Name) and target.id == "driver_key"
+                           for target in node.targets))
+        self.assertEqual(manifest["plugin_key"], "opencreator_filaman")
+        self.assertEqual(manifest["driver_key"], key)
+        self.assertIn("opencreator_url", manifest["config_schema"]["required"])
+        self.assertIn("opencreator_url", manifest["config_schema"]["properties"])
+
+    def test_url_config_and_legacy_fallback(self):
+        for config, expected in [
+            ({"opencreator_url": "http://new.test/", "moonraker_url": "http://old.test"},
+             "http://new.test"),
+            ({"moonraker_url": "http://old.test/"}, "http://old.test"),
+        ]:
+            driver = InitDriver(1, config, lambda event: None)
+            driver._validate_url()
+            self.assertEqual(driver._moonraker_url, expected)
+        with self.assertRaisesRegex(ValueError, "opencreator_url"):
+            InitDriver(1, {"opencreator_url": "invalid"}, lambda event: None)._validate_url()
 
     async def test_standalone_afc_lanes_are_not_feeder_trays(self):
         driver = Driver()

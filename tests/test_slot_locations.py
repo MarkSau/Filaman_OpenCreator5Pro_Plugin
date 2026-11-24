@@ -29,7 +29,7 @@ class SlotLocationTests(unittest.IsolatedAsyncioTestCase):
         async with self.sessions() as db:
             manufacturer = Manufacturer(name="Test")
             status = SpoolStatus(key="active", label="Active")
-            self.printer = Printer(name="Moonraker", driver_key="moonraker_filaman")
+            self.printer = Printer(name="OpenCreator", driver_key="opencreator_filaman")
             self.shelf = Location(name="Shelf")
             db.add_all([manufacturer, status, self.printer, self.shelf])
             await db.flush()
@@ -43,7 +43,7 @@ class SlotLocationTests(unittest.IsolatedAsyncioTestCase):
     def driver(self):
         driver = moonraker.Driver(
             self.printer.id,
-            {"moonraker_url": "http://printer.test", "slot_count": 2},
+            {"opencreator_url": "http://printer.test", "slot_count": 2},
             lambda _event: None,
         )
         driver._request = AsyncMock(return_value={"result": {}})

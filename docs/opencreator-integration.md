@@ -45,13 +45,21 @@ git access, or install a securely transferred local folder instead.
    `GET /printer/objects/list` and `/printer/objects/query`.
 5. On the FilaMan host, create a zip containing the `moonraker_filaman` folder
    (for example `zip -r filaman-driver.zip moonraker_filaman -x '*/__pycache__/*' '*.pyc'`) and install it
-   using FilaMan's plugin manager. It uses the existing `moonraker_filaman`
-   driver key; replace rather than install alongside the original driver.
-   Configure the printer with `moonraker_url`, optional Moonraker `api_key`,
+   using FilaMan's plugin manager. Its plugin and driver key is
+   `opencreator_filaman`. Configure the printer with `opencreator_url` pointing
+   to Moonraker, optional Moonraker `api_key`,
    `mode: toolhead_only`, and `slot_count: 1`. Four toolheads should be
    discovered from the printer objects; `slot_count: 1` avoids creating
    unverified virtual trays. Existing configurations with a different value
    must be changed explicitly.
+   The renamed plugin is a new FilaMan identity, not an in-place update of
+   `moonraker_filaman`: back up FilaMan and follow its supported procedure to
+   change each printer's driver and copy its settings to `opencreator_url`.
+   The driver can read the legacy `moonraker_url` at runtime, but the new
+   schema requires `opencreator_url`; test migration with your FilaMan version.
+   Disable the old driver before activating the new one for the same printer to
+   avoid duplicate assignments and consumption tracking. Existing plugin-owned
+   location identifiers are retained for continuity.
 6. With the printer idle, verify each toolhead assignment, switch insertion and
    removal, restart persistence and active-tool changes. Use small controlled
    extrusion and independently verify the expected consumption in FilaMan.

@@ -73,7 +73,7 @@ contain `result` or `error`, subscriptions use `response_template`. See
 
 ## Migration plan
 
-1. Retain the proven-by-source Moonraker transport and existing driver key;
+1. Retain the proven-by-source Moonraker transport;
    replace only incompatible assumptions. Use distinct firmware and FilaMan
    install artifacts. Implemented here.
 2. Package the existing bridge for the OpenCreator plugin manager, keep
@@ -97,15 +97,17 @@ contain `result` or `error`, subscriptions use `response_template`. See
 Relative to the driver fork:
 
 - **Modified:** `moonraker_filaman/plugin.json` changes the virtual tray default
-  from 4 to 1. Existing configured values are unaffected. `.gitignore` excludes
-  Python cache directories.
+  from 4 to 1 and renames the plugin/driver key to `opencreator_filaman` and
+  URL field to `opencreator_url`. `driver.py` uses the new identity and accepts
+  the old URL field as a runtime fallback; schema validation still requires the
+  new field. `.gitignore` excludes Python cache directories.
 - **Added:** `opencreator-plugin.json`; `moonraker/filaman.py` and
   `moonraker/LICENSE` from the separate existing firmware-side project, with
   switch precedence, explicit motion-sensor opt-in and conditional metadata push adaptations;
   `tests/test_opencreator.py`; `README.md`; `docs/architecture.md`,
   `docs/migration.md`, `docs/opencreator-integration.md`,
   `docs/development.md` and `docs/upstream-driver.md` (original driver README).
-- **Retained:** driver implementation, package initializer and icon, and
+- **Retained:** package initializer and icon, and
   inherited tests/fixture. CI release workflows were not
   carried over.
 - **Manual review:** `moonraker/filaman.py` (endpoint conflicts, sensor/usage

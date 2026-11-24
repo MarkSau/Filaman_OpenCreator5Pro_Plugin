@@ -114,7 +114,7 @@ class _SafeFormatDict(dict):
 
 
 class Driver(BaseDriver):
-    driver_key = "moonraker_filaman"
+    driver_key = "opencreator_filaman"
 
     def __init__(
         self,
@@ -123,7 +123,9 @@ class Driver(BaseDriver):
         emitter: Callable[[dict[str, Any]], None],
     ):
         super().__init__(printer_id, config, emitter)
-        self._moonraker_url = (config.get("moonraker_url") or "").rstrip("/")
+        self._moonraker_url = (
+            config.get("opencreator_url") or config.get("moonraker_url") or ""
+        ).rstrip("/")
         self._api_key = config.get("api_key") or ""
         self._mode = config.get("mode", "toolhead_only")
         self._request_timeout = int(config.get("request_timeout_seconds", 10))
@@ -1002,7 +1004,7 @@ class Driver(BaseDriver):
     def _validate_url(self) -> None:
         parsed = urlparse(self._moonraker_url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            raise ValueError("moonraker_url must be a valid http(s) URL")
+            raise ValueError("opencreator_url must be a valid http(s) URL")
 
     def validate_config(self) -> None:
         self._validate_url()
@@ -1734,7 +1736,7 @@ class Driver(BaseDriver):
 
         if self._mode == "tray_macros" and not self._slot_targets:
             logger.warning(
-                "moonraker_filaman printer %s runs in tray_macros mode without slot_targets",
+                "opencreator_filaman printer %s runs in tray_macros mode without slot_targets",
                 self.printer_id,
             )
 
@@ -2126,6 +2128,7 @@ class Driver(BaseDriver):
             "printer_id": self.printer_id,
             "running": self._running,
             "connected": self._connected,
+            "opencreator_url": self._moonraker_url,
             "moonraker_url": self._moonraker_url,
             "mode": self._mode,
             "active_spool_id": self._active_spool_id,

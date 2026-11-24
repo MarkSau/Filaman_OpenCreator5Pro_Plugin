@@ -1,7 +1,7 @@
 # Architecture
 
 ```
-FilaMan backend + moonraker_filaman driver
+FilaMan backend + opencreator_filaman driver
         | HTTP: printer objects, status, spool assignment, optional G-code
         v
 OpenCreator Moonraker + filaman component
