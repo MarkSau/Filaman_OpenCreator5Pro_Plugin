@@ -353,6 +353,7 @@ class RefreshFake(Probe):
         self._slots = slots
         self._active_spool_id = None
         self._filament_present = {}
+        self._afc_presence = {}
         self._pending = None
         self._auto_assign_confirm = "sensor"
 
@@ -374,6 +375,9 @@ class RefreshFake(Probe):
 
     def _apply_extruder_spools(self, extruder_spools):
         return False
+
+    async def _refresh_standalone_afc(self):
+        pass
 
     def _emit_slots_update(self):
         pass

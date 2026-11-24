@@ -16,6 +16,12 @@ optional feeder slots, tracks assignments and original locations, and can send
 configured G-code. Its `aiohttp` dependency is declared in its plugin manifest.
 It is **not** an OpenCreator plugin-manager component.
 
+For standalone AFC, the driver reads `AFC_extruder` and `AFC_lane` statuses
+and maps the latter to the already-existing toolhead slots by the reported
+extruder name. Lane `prep` provides a presence fallback when the bridge does
+not report the corresponding toolhead sensor. This is read-only: it does not
+set AFC's lane spool ID or metadata.
+
 The firmware-side component uses Moonraker's component lifecycle, event loop,
 HTTP client, history, database, announcements and `klippy_apis`. It publishes
 FilaMan and Spoolman-compatible endpoints/notifications, retains per-extruder

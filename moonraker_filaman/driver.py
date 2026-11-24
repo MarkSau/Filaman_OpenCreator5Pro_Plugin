@@ -193,6 +193,9 @@ class Driver(BaseDriver):
         self._pending_timer: asyncio.Task | None = None
         self._filament_present: dict[str, Any] = {}
         self._slot_sensor_present: dict[str, bool] = {}
+        self._afc_objects: list[str] = []
+        self._afc_presence: dict[str, bool] = {}
+        self._afc_lanes: dict[str, str] = {}
         # slot number -> {"spool_id", "polls"}: removals seen but not yet acted
         # on, either still being confirmed or waiting for the printer to be in a
         # state where an empty slot means what it says.
@@ -467,16 +470,22 @@ class Driver(BaseDriver):
         firmware or add-on change is picked up without editing the config. A
         user-supplied path is never overwritten.
         """
-        if self._slot_sensor_objects and not self._slot_sensor_autodetected:
-            return
         try:
             objects = await self._discover_objects()
+            self._afc_objects = [
+                name for name in objects
+                if _name_matches(name, "AFC_lane ", True)
+                or _name_matches(name, "AFC_extruder ", True)
+            ]
         except Exception as exc:
             logger.debug(
                 "Slot sensor autodetection could not list objects for printer %s: %s",
                 self.printer_id,
                 exc,
             )
+            return
+
+        if self._slot_sensor_objects and not self._slot_sensor_autodetected:
             return
 
         for preset in SLOT_SENSOR_PRESETS:
@@ -504,6 +513,13 @@ class Driver(BaseDriver):
             )
             return
 
+        if self._afc_objects:
+            logger.info(
+                "No feeder slot sensor preset matched printer %s; standalone AFC "
+                "toolhead presence is checked separately.",
+                self.printer_id,
+            )
+            return
         logger.warning(
             "No slot sensor preset matched the %d objects on printer %s; "
             "auto-assign cannot be confirmed by slot insertion. Set "
@@ -892,6 +908,11 @@ class Driver(BaseDriver):
             return self._build_initial_slots()
 
         objects = await self._discover_objects()
+        self._afc_objects = [
+            name for name in objects
+            if _name_matches(name, "AFC_lane ", True)
+            or _name_matches(name, "AFC_extruder ", True)
+        ]
 
         extruder_names = sorted(
             name for name in objects if re.match(r"^extruder\d*$", name)
@@ -960,6 +981,68 @@ class Driver(BaseDriver):
             )
 
         return discovered
+
+    async def _refresh_standalone_afc(self) -> None:
+        """Associate standalone AFC lanes with the existing toolhead slots."""
+        if not self._afc_objects:
+            self._afc_lanes = {}
+            self._afc_presence = {}
+            return
+        query = "&".join(quote(name, safe="") for name in self._afc_objects)
+        try:
+            payload = await self._request("GET", f"/printer/objects/query?{query}")
+            status = self._unwrap_result(payload).get("status")
+            if not isinstance(status, dict):
+                raise ValueError("AFC object query returned no status")
+        except Exception as exc:
+            self._afc_presence = {}
+            self._afc_lanes = {}
+            self._warn_once("afc_query", "AFC status query failed on printer %s: %s",
+                            self.printer_id, exc)
+            return
+        self._clear_warn_once("afc_query")
+
+        candidates: dict[str, list[tuple[str, bool]]] = {}
+        for name in self._afc_objects:
+            if not _name_matches(name, "AFC_extruder ", True):
+                continue
+            obj = status.get(name)
+            if not isinstance(obj, dict) or obj.get("is_standalone") is not True:
+                continue
+            extruder = obj.get("extruder_name")
+            lanes = obj.get("lanes")
+            if not isinstance(extruder, str) or not isinstance(lanes, list) or len(lanes) != 1:
+                continue
+            lane = lanes[0]
+            if not isinstance(lane, str):
+                continue
+            lane_obj = status.get(f"AFC_lane {lane}")
+            if not isinstance(lane_obj, dict) or lane_obj.get("extruder") != name.split(" ", 1)[1]:
+                continue
+            present = lane_obj.get("prep")
+            if not isinstance(present, bool):
+                continue
+            if not any(self._slot_extruder(slot) == extruder for slot in self._slots):
+                continue
+            candidates.setdefault(extruder, []).append((lane, present))
+
+        self._afc_lanes = {
+            extruder: entries[0][0] for extruder, entries in candidates.items()
+            if len(entries) == 1
+        }
+        self._afc_presence = {
+            extruder: entries[0][1] for extruder, entries in candidates.items()
+            if len(entries) == 1
+        }
+        for extruder, entries in candidates.items():
+            if len(entries) != 1:
+                self._warn_once(
+                    f"afc_mapping:{extruder}",
+                    "Ambiguous standalone AFC mapping for %s on printer %s",
+                    extruder, self.printer_id,
+                )
+            else:
+                self._clear_warn_once(f"afc_mapping:{extruder}")
 
     async def _refresh_slots(self, emit: bool = True) -> None:
         try:
@@ -1774,6 +1857,10 @@ class Driver(BaseDriver):
         # rather than pre-existing occupancy.
         with contextlib.suppress(Exception):
             await self._autodetect_slot_sensor()
+        await self._refresh_standalone_afc()
+        for extruder, present in self._afc_presence.items():
+            if not isinstance(self._filament_present.get(extruder), bool):
+                self._filament_present[extruder] = present
         # Seeded from the assignments just restored, so a spool removed while
         # the driver was down is a present->empty edge on the first poll rather
         # than an invisible disagreement with the printer. Slots we hold no
@@ -1855,18 +1942,29 @@ class Driver(BaseDriver):
         filament_present = result.get("filament_present")
         if not isinstance(filament_present, dict):
             filament_present = {}
+        else:
+            filament_present = dict(filament_present)
+        await self._refresh_standalone_afc()
+        for extruder, present in self._afc_presence.items():
+            if not isinstance(filament_present.get(extruder), bool):
+                filament_present[extruder] = present
         previous_present = self._filament_present
         self._filament_present = dict(filament_present)
 
         if self._pending is not None and self._auto_assign_confirm == "sensor":
+            edges = []
             for extruder, present in filament_present.items():
                 # `is False`, not truthiness, matching _poll_slot_sensor: a
                 # MISSING baseline key must not read as "was empty". Otherwise
                 # the first poll after a restart, or one response that omitted
                 # filament_present, completes a pending with nothing inserted.
-                if present and previous_present.get(extruder) is False:
-                    await self._complete_pending_assignment(extruder)
-                    break
+                if present is True and previous_present.get(extruder) is False:
+                    edges.append(extruder)
+            if len(edges) == 1:
+                await self._complete_pending_assignment(edges[0])
+            elif len(edges) > 1:
+                logger.warning("Multiple toolhead sensors became present on printer %s; "
+                               "not assigning the pending spool", self.printer_id)
 
         return {
             "connected": self._connected,
@@ -1944,6 +2042,9 @@ class Driver(BaseDriver):
                 self.printer_id,
             )
             return
+
+        if self._auto_assign_confirm == "immediate" and not slot_index and len(self._slots) > 1:
+            raise ValueError("immediate auto-assign requires a slot on a multi-tool printer")
 
         if self._pending_timer and not self._pending_timer.done():
             self._pending_timer.cancel()
@@ -2043,11 +2144,20 @@ class Driver(BaseDriver):
                 )
                 self._clear_pending()
                 return
+            if extruder is not None and self._slot_extruder(slot) != extruder:
+                logger.warning("Pending spool %s targets %s but insertion was reported "
+                               "for %s; waiting for the matching toolhead",
+                               spool_id, resolved_index, extruder)
+                return
         if slot is None and extruder is not None:
             for candidate in self._slots:
                 if self._slot_extruder(candidate) == extruder:
                     slot = candidate
                     break
+            if slot is None:
+                logger.warning("Pending spool %s: no slot for extruder %s on printer %s",
+                               spool_id, extruder, self.printer_id)
+                return
         if slot is None:
             has_trays = any(
                 str(s.get("slot_kind") or "") == "tray" for s in self._slots
@@ -2065,9 +2175,13 @@ class Driver(BaseDriver):
                     self.printer_id,
                 )
                 return
-            if self._slots:
+            if len(self._slots) == 1:
                 # Single-toolhead printer: there is only one place it can go.
                 slot = self._slots[0]
+            elif len(self._slots) > 1:
+                logger.warning("Pending spool %s needs a specific toolhead on printer %s",
+                               spool_id, self.printer_id)
+                return
         if slot is None:
             logger.warning(
                 "Pending spool %s: no slot available to complete auto-assign "
@@ -2145,6 +2259,8 @@ class Driver(BaseDriver):
             "auto_assign_confirm": self._auto_assign_confirm,
             "sensor_timeout_seconds": self._sensor_timeout,
             "filament_present": self._filament_present,
+            "afc_standalone_lanes": self._afc_lanes,
+            "afc_standalone_presence": self._afc_presence,
             # The slot-sensor subsystem's own state. health() is the one channel
             # the UI already reads, so leaving it out meant a misconfigured
             # sensor was invisible everywhere.

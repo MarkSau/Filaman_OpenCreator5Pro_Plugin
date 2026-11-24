@@ -10,6 +10,9 @@ Moonraker component (`moonraker/filaman.py`) and a FilaMan-installed driver
 this integration deliberately retains that bridge.
 The FilaMan plugin and driver key is `opencreator_filaman`; its
 `opencreator_url` points to the printer's Moonraker HTTP service.
+Standalone AFC lanes are associated with their existing toolhead slots and
+provide an additional presence source for pending auto-assignments. This does
+not yet write spool IDs or filament data to AFC.
 
 See the [integration guide](docs/opencreator-integration.md), [architecture](docs/architecture.md),
 [compatibility matrix and migration plan](docs/migration.md), and

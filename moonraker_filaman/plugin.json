@@ -4,7 +4,7 @@
   "name": "OpenCreator FilaMan",
   "driver_key": "opencreator_filaman",
   "plugin_type": "driver",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Driver that sends spool assignments from FilaMan to OpenCreator's filaman component. Supports toolhead assignment and optional macro-based tray targets.",
   "author": "FilaMan",
   "homepage": "https://www.filaman.app",

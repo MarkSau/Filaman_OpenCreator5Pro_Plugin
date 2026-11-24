@@ -19,13 +19,13 @@ These snapshots may not be the versions on the device.
 | --- | --- | --- |
 | Runtime architecture | OpenCreator `config/moonraker.conf` and startup scripts use Moonraker and Kalico's `/tmp/uds`. Kalico `docs/API_Server.md` defines framed socket messages. | Retain Moonraker; no evidence supports removing it. Socket path and service versions must be verified on device. |
 | OpenCreator lifecycle | `oc_plugin.py` links Moonraker components and regenerates plugin config; `sync()` skips links in tunneled mode. | Manifest restricts to Creator5Pro `soc`; local `[filaman]` settings remain outside generated files. SBC is not supported by this package. |
-| Four toolheads | OpenCreator `printer.cfg` defines `extruder` through `extruder3`; standalone `AFC_extruder` sections create `AFC_lane extruder0` through `extruder3` in Kalico `AFC_extruder.py`. | Existing driver discovers extruders. Default `slot_count` is now 1, so standalone lanes are not invented as feeder trays. Confirm object list and existing settings. |
+| Four toolheads | OpenCreator `printer.cfg` defines `extruder` through `extruder3`; standalone `AFC_extruder` sections create `AFC_lane extruder0` through `extruder3` in Kalico `AFC_extruder.py`. | The driver maps these lanes to existing toolhead slots via `extruder_name`, `is_standalone`, `lanes` and lane `extruder`. Default `slot_count` is 1, so additional feeder trays are not invented. Confirm object list and existing settings. |
 | Tool presence | OpenCreator `printer.afc-standalone.cfg` configures `pin_tool_start`; Kalico registers switches `<extruderN>_tool_start`. `printer.filament.cfg` also has `fm_ex*` wheel motion sensors. | Component prioritizes switches, ignores motion sensors unless explicitly mapped, and honors overrides. Verify actual mappings and semantics on device. |
-| Feeder/AMS presence | Driver recognizes `AFC_stepper`, MMU and QIDI patterns, not standalone `AFC_lane` objects. AFC lane status has `prep`. | Keep feeder support unchanged. Do not equate standalone tool lanes with additional trays; add a validated mapping before supporting other Creator 5 feeder configurations. |
+| Feeder/AMS presence | Original driver recognizes `AFC_stepper`, MMU and QIDI patterns, not standalone `AFC_lane` objects. AFC lane status has `prep`. The original schema defaulted `slot_count` to 4, which could create virtual trays even without AFC discovery. | Feeder support remains unchanged. Standalone lane presence is associated with its toolhead, without duplicating it as a separate tray; actual installation behavior still requires live verification. Explicit existing `slot_count > 1` can still create virtual trays. |
 | Assignment | Driver POSTs `spool_id` and optional `extruder` to `/server/filaman/spool_id`; component stores per-extruder IDs. | Preserved. Tool assignments do not call AFC `SET_SPOOL_ID`; lane synchronization and response verification remain open. |
 | Metadata push | Existing component calls `/printer/filament_detect/set`; `filament_detect` and `print_task_config` implementations are not present in the inspected Kalico tree. | Skip pushes if `filament_detect` object was not discovered. Presence of an object does not itself prove the HTTP endpoint works; verify if present. No Creator 5 metadata adapter is claimed. |
 | Usage reporting | Component subscribes to toolhead position, calculates positive extrusion, converts length to weight and POSTs a consumption. | Preserved, not end-to-end tested. Test resets, retractions, toolchanges, outages and duplicate reporting; defaults for missing density/diameter may affect accuracy. Pending reports are in memory. |
-| Spoolman/AFC | Component registers Spoolman aliases and a remote method; `AFC_spool.py` calls `spoolman_set_active_spool` and obtains spool data via Moonraker. | Compatibility bridge retained, not proven against the deployed FilaMan Spoolman API. Existing `[spoolman]` or endpoint registration can conflict. |
+| Spoolman/AFC | Component registers Spoolman aliases and a remote method; `AFC_utils.get_spoolman_server` requires `orig.spoolman.server` from `/server/config`. `AFC_spool.py` calls `spoolman_set_active_spool` and obtains spool data via Moonraker. | Registering an alias alone does not satisfy this detection. The driver reads AFC but does not write lane spool IDs. Existing `[spoolman]` or endpoint registration can conflict; do not add it blindly. Kalico is unchanged. |
 | Sensor-driven auto-assign | Driver reads component `filament_present` and optional per-tray sensor status; absent baseline is not an insertion. | Retained. Verify debounce, mapping, insertion/unload and restart behavior with four tools; avoid assuming a motion sensor represents spool presence. |
 | Security | Inspected OpenCreator default has API keys disabled and trusts `0.0.0.0/0`; component sends FilaMan `Authorization: ApiKey ...`. Driver optionally sends Moonraker `X-Api-Key`. | No credentials included here; use protected configuration and network isolation/hardening. Do not expose the default service to untrusted networks. |
 
@@ -82,9 +82,11 @@ contain `result` or `error`, subscriptions use `response_template`. See
 3. Prefer switches, require explicit opt-in for motion sensors, and avoid
    metadata requests when their supporting object is absent. Implemented with
    focused tests.
-4. Validate actual per-tool mapping and AFC integration. Design an explicit,
-   separately tested lane-to-extruder adapter if bidirectional lane assignment
-   is required; do not assume sorted lane order or send motion commands.
+4. Map AFC standalone lanes to existing toolheads from reported status fields;
+   use `prep` as a presence fallback. Refuse ambiguous mappings and simultaneous
+   insertion confirmations. Implemented with source-shaped tests; validate
+   against the actual printer. Design a separate adapter for bidirectional
+   spool synchronization; do not assume sorted lane order or send motion commands.
 5. Test against the exact deployed FilaMan, Moonraker and Kalico versions in a
    disposable environment: registration/authentication, discovery,
    per-extruder assign/clear, pending insertion, runout debounce, toolchange,
@@ -101,6 +103,11 @@ Relative to the driver fork:
   URL field to `opencreator_url`. `driver.py` uses the new identity and accepts
   the old URL field as a runtime fallback; schema validation still requires the
   new field. `.gitignore` excludes Python cache directories.
+- **AFC adaptation:** `moonraker_filaman/driver.py` reads and validates
+  standalone lane-to-extruder mappings and lane presence, merges it with
+  component presence for pending assignments, reports it in health, and
+  refuses ambiguous/mismatched tool assignments. `tests/test_opencreator.py`
+  and `tests/test_slot_sensor.py` cover the new behavior.
 - **Added:** `opencreator-plugin.json`; `moonraker/filaman.py` and
   `moonraker/LICENSE` from the separate existing firmware-side project, with
   switch precedence, explicit motion-sensor opt-in and conditional metadata push adaptations;
@@ -118,7 +125,8 @@ Relative to the driver fork:
 ## Verification performed
 
 The focused compatibility tests and inherited dependency-free sensor tests
-passed. The inspected OpenCreator plugin manager installed, synced and removed
+passed, including synthetic statuses shaped from the inspected Kalico source.
+The inspected OpenCreator plugin manager installed, synced and removed
 the package in a temporary simulated SoC filesystem; persistent Moonraker
 configuration remained intact. Python compilation passed. The inherited
 location tests could not run here: the FilaMan backend and its dependencies,
@@ -130,9 +138,9 @@ including FastAPI, are unavailable. No live service or printer was tested.
   restart behavior, paths, Python versions, FilaMan plugin loading and API schemas.
 - Verify physical sensor mappings, sensor polarity/debounce, four toolhead
   selection, assignments, runout and auto-assignment across restarts.
-- Verify AFC's Spoolman proxy data shapes and whether lane IDs should be updated;
-  implement and test the adapter if needed. Avoid duplicate consumption from
-  other tracking integrations.
+- Verify AFC's Spoolman proxy data shapes and implement and test lane spool ID
+  synchronization without modifying Kalico or conflicting with a real
+  Spoolman component. Avoid duplicate consumption from other integrations.
 - Establish Creator 5's actual metadata API, if any; implement a dedicated
   adapter only after verifying its interface and effects.
 - Run backend-dependent location tests and integration tests with realistic

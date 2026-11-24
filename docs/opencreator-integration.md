@@ -63,11 +63,22 @@ git access, or install a securely transferred local folder instead.
 6. With the printer idle, verify each toolhead assignment, switch insertion and
    removal, restart persistence and active-tool changes. Use small controlled
    extrusion and independently verify the expected consumption in FilaMan.
-   Test pending assignments and error recovery before using in a print.
+   Test pending assignments and error recovery before using in a print. The
+   driver's health reports `afc_standalone_lanes` (physical extruder to AFC
+   lane) and `afc_standalone_presence`. Verify all mappings against
+   `/printer/objects/query` on the actual printer; unknown or ambiguous mappings
+   are not used. On a multi-tool printer immediate auto-assign requires an
+   explicit slot. Simultaneous insertions are not automatically assigned.
 
 The bridge sets a per-extruder spool in Moonraker; it does not automatically
 assign that spool to an AFC lane with `SET_SPOOL_ID`. No automatic tray mapping
-or metadata display on Creator 5 Pro is claimed. Avoid `tray_macros` unless
+or metadata display on Creator 5 Pro is claimed. The investigated Kalico AFC
+enables Spoolman handling only when `/server/config` reports a `[spoolman]`
+section. The bridge's `/server/spoolman` alias and its internal component
+alias do not themselves create that section. Adding stock `[spoolman]` alongside
+the bridge risks component and endpoint collisions; do not enable both as a
+workaround. Verify the installed Kalico version and its FilaMan/Spoolman
+integration before attempting AFC-side spool synchronization. Avoid `tray_macros` unless
 the lane names, IDs, response handling and effects are independently verified.
 
 To roll back, stop using the driver, back up changes, remove this plugin with
