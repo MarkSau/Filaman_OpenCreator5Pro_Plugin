@@ -98,12 +98,12 @@ contain `result` or `error`, subscriptions use `response_template`. See
 
 Relative to the driver fork:
 
-- **Modified:** `moonraker_filaman/plugin.json` changes the virtual tray default
+- **Modified:** `opencreator_filaman/plugin.json` changes the virtual tray default
   from 4 to 1 and renames the plugin/driver key to `opencreator_filaman` and
   URL field to `opencreator_url`. `driver.py` uses the new identity and accepts
   the old URL field as a runtime fallback; schema validation still requires the
   new field. `.gitignore` excludes Python cache directories.
-- **AFC adaptation:** `moonraker_filaman/driver.py` reads and validates
+- **AFC adaptation:** `opencreator_filaman/driver.py` reads and validates
   standalone lane-to-extruder mappings and lane presence, merges it with
   component presence for pending assignments, reports it in health, and
   refuses ambiguous/mismatched tool assignments. `tests/test_opencreator.py`
@@ -118,7 +118,7 @@ Relative to the driver fork:
   inherited tests/fixture. CI release workflows were not
   carried over.
 - **Manual review:** `moonraker/filaman.py` (endpoint conflicts, sensor/usage
-  and printer metadata behavior), `moonraker_filaman/driver.py` (slot and
+  and printer metadata behavior), `opencreator_filaman/driver.py` (slot and
   location persistence, multi-tool pending assignment), both manifests,
   licensing and all deployment instructions.
 

@@ -32,7 +32,7 @@ def extract(path, class_name, names, namespace, bases=None):
 Component = extract(ROOT / "moonraker/filaman.py", "FilaManManager",
                     ["_discover_filament_sensors", "_sensor_to_extruder",
                      "_push_spool_to_printer"], {"logging": logging, "re": re})
-Driver = extract(ROOT / "moonraker_filaman/driver.py", "Driver",
+Driver = extract(ROOT / "opencreator_filaman/driver.py", "Driver",
                  ["_discover_slots"], {
                      "re": re,
                      "AFC_LANE_PREFIX": "afc_stepper ",
@@ -50,7 +50,7 @@ class FakeBase:
 
 
 InitDriver = extract(
-    ROOT / "moonraker_filaman/driver.py", "Driver", ["__init__", "_validate_url"],
+    ROOT / "opencreator_filaman/driver.py", "Driver", ["__init__", "_validate_url"],
     {"asyncio": asyncio, "urlparse": urlparse,
      "logger": logging.getLogger(__name__), "FakeBase": FakeBase,
      "DEFAULT_AUTO_ASSIGN_CONFIRM": "sensor",
@@ -63,7 +63,7 @@ InitDriver._normalize_slot_targets = lambda self, config: []
 InitDriver._build_initial_slots = lambda self: []
 
 AfcDriver = extract(
-    ROOT / "moonraker_filaman/driver.py", "Driver",
+    ROOT / "opencreator_filaman/driver.py", "Driver",
     ["_refresh_standalone_afc", "refresh_status", "assign_pending_spool", "_complete_pending_assignment",
      "_slot_extruder", "_slot_to_ids", "_find_slot"],
     {"quote": quote, "logger": logging.getLogger(__name__),
@@ -135,12 +135,12 @@ class OpenCreatorTests(unittest.IsolatedAsyncioTestCase):
                          {"channel": 0, "info": {}})
 
     def test_fila_man_default_does_not_create_virtual_trays(self):
-        manifest = json.loads((ROOT / "moonraker_filaman/plugin.json").read_text())
+        manifest = json.loads((ROOT / "opencreator_filaman/plugin.json").read_text())
         self.assertEqual(manifest["config_schema"]["properties"]["slot_count"]["default"], 1)
 
     def test_driver_identity_and_schema_match(self):
-        manifest = json.loads((ROOT / "moonraker_filaman/plugin.json").read_text())
-        tree = ast.parse((ROOT / "moonraker_filaman/driver.py").read_text())
+        manifest = json.loads((ROOT / "opencreator_filaman/plugin.json").read_text())
+        tree = ast.parse((ROOT / "opencreator_filaman/driver.py").read_text())
         cls = next(node for node in tree.body
                    if isinstance(node, ast.ClassDef) and node.name == "Driver")
         key = next(node.value.value for node in cls.body if isinstance(node, ast.Assign)

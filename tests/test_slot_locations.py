@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.api.v1.spools import _reject_driver_managed_create_location
 from app.models import Base, Filament, Location, Manufacturer, Printer, Spool, SpoolStatus
-from moonraker_filaman import driver as moonraker
+from opencreator_filaman import driver as moonraker
 
 
 class SlotLocationTests(unittest.IsolatedAsyncioTestCase):

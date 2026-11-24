@@ -5,7 +5,7 @@ Clone this repository and run the dependency-free focused checks:
 ```sh
 python3 tests/test_opencreator.py
 python3 tests/test_slot_sensor.py
-python3 -m compileall -q moonraker moonraker_filaman
+python3 -m compileall -q moonraker opencreator_filaman
 ```
 
 `tests/test_slot_locations.py` imports the real FilaMan backend, SQLAlchemy,

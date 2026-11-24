@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PATH = (
     sys.argv[1]
     if len(sys.argv) > 1
-    else os.path.join(HERE, "..", "moonraker_filaman", "driver.py")
+    else os.path.join(HERE, "..", "opencreator_filaman", "driver.py")
 )
 WANTED = {
     "_slot_sensor_present_value",

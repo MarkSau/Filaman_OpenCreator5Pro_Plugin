@@ -43,9 +43,11 @@ git access, or install a securely transferred local folder instead.
    `filament_sensors` mapping and verify its syntax against the deployed
    Moonraker version. Inspect sensors and toolhead objects via
    `GET /printer/objects/list` and `/printer/objects/query`.
-5. On the FilaMan host, create a zip containing the `moonraker_filaman` folder
-   (for example `zip -r filaman-driver.zip moonraker_filaman -x '*/__pycache__/*' '*.pyc'`) and install it
-   using FilaMan's plugin manager. Its plugin and driver key is
+5. On the FilaMan host, create a zip containing the `opencreator_filaman` folder
+   (for example `zip -r creator_plugin.zip opencreator_filaman -x '*/__pycache__/*' '*.pyc'`) and install it
+   using FilaMan's plugin manager. This archive contains only the FilaMan
+   driver; the printer-side Moonraker component is installed separately above.
+   Its plugin and driver key is
    `opencreator_filaman`. Configure the printer with `opencreator_url` pointing
    to Moonraker, optional Moonraker `api_key`,
    `mode: toolhead_only`, and `slot_count: 1`. Four toolheads should be
